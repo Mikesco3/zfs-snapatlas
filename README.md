@@ -2,9 +2,13 @@
 
 A tool for analyzing and managing ZFS storage usage by chunks of snapshots. This script helps you understand where your storage is being consumed by snapshots and provides targeted deletion capabilities.
 
-## ⚠️ Beta Version Disclaimer
+## Versioning
 
-**Version: 20250814 (Beta)**
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Git tags are used to mark releases.
+
+- **Current Version:** 0.2.0
+
+## ⚠️ Beta Version Disclaimer
 
 This tool is currently in **BETA** and should be used with caution, especially the deletion functionality. Please:
 

@@ -2,7 +2,7 @@
 ## This script attempts to helps find the storage being used by snapshots.
 ## License: GPLv3
 ## Copyright (C) 2025 Michael Schmitz
-## version: 20250813
+VERSION="0.2.0"
 ## Now supports: lists snapshots and their reclaim size per chunk, and deletes snapshots
 ## Pending:
 ##
@@ -29,7 +29,7 @@ skip_confirmation=false
 usage() {
     echo "# Script to analyze ZFS snapshot usage by chunks"
     echo "# Note: This script requires ZFS snapshots to be present on the target system."
-    echo "# version: 20250813"
+    echo "# version: $VERSION"
     echo "# Now supports: list chunks of snapshots and their reclaim size, and can delete snapshots"
     echo "#"
     echo "Usage: $0 [-v] [-l] [-d N] [-t N,M] [-D coords | --delete-all] [-y] <dataset> [chunk_size]"
