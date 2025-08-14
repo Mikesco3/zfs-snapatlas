@@ -2,7 +2,7 @@
 ## This script attempts to helps find the storage being used by snapshots.
 ## License: GPLv3
 ## Copyright (C) 2025 Michael Schmitz
-VERSION="0.2.3"
+VERSION="0.2.4"
 ## Now supports: lists snapshots and their reclaim size per chunk, and deletes snapshots
 ## Pending:
 ##

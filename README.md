@@ -8,7 +8,7 @@ For more detailed information, see [DETAILS.md](DETAILS.md).
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Git tags are used to mark releases.
 
-- **Current Version:** 0.2.3 (BETA)
+- **Current Version:** 0.2.4 (BETA)
 
 ## ⚠️ Beta Version Disclaimer
 
