@@ -42,174 +42,103 @@ Run the following with root privileges command to download the script:
 sudo wget -O /usr/bin/zfs-snapatlas https://raw.githubusercontent.com/Mikesco3/zfs-snapatlas/main/zfs-snapatlas.sh && sudo chmod +x /usr/bin/zfs-snapatlas
 ```
 
-## Quick Start
-
-1. **Find a ZFS dataset or zvol to analyze**
-
-   List your available datasets and their snapshot usage:
-   ```sh
-   zfs list -o space
-   ```
-   Example output:
-   ```
-   NAME                            AVAIL  USED   USEDSNAP  USEDDS  USEDREFRESERV  USEDCHILD
-   rpool                           977G   534G        0B    208K             0B       534G
-   rpool/ROOT                      977G  9.13G        0B    192K             0B      9.13G
-   rpool/ROOT/pve-1                977G  9.13G     3.97G   5.16G             0B         0B
-   rpool/data/subvol-151-disk-0   36.7G  64.3G      983M   63.3G             0B         0B
-   rpool/data/subvol-152-disk-0    977G  4.69G      955M   3.76G             0B         0B
-   rpool/data/vm-180-disk-0        977G  61.5G     34.3G   27.2G             0B         0B
-   rpool/data/vm-180-disk-1        977G  4.96G       16K   4.96G             0B         0B
+### Longer method
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/Mikesco3/zfs-snapatlas.git
+   cd zfs-snapatlas
    ```
 
-2. **Analyze snapshot usage for a dataset**
-
-   Run the script on a dataset (e.g., `rpool/data/vm-180-disk-0`):
-   ```sh
-   ./zfs-snapatlas.sh rpool/data/vm-180-disk-0
-   ```
-   Example output:
-   ```
-   Analyzing snapshots for dataset: rpool/data/vm-180-disk-0
-   Chunk size: 10
-
-   Most recent snapshot: autosnap_2025-08-14_06:00:52_hourly
-
-   === SUMMARY: Chunk reclaim sizes (gap mode: reclaim space per chunk) ===
-   chunk 1	[00-09]	20240902_before-Upgrades                  	34.3G
-   chunk 2	[10-19]	autosnap_2025-08-12_05:00:49_hourly         	0B
-   chunk 3	[20-29]	autosnap_2025-08-12_15:00:52_hourly         	0B
-   chunk 4	[30-39]	autosnap_2025-08-13_00:00:53_hourly         	0B
-   chunk 5	[40-46]	autosnap_2025-08-14_00:00:53_hourly         	0B
-   ```
-   > **Note:** By default, the script analyzes 10 snapshots per chunk. To change the chunk size, add a number as the second argument (e.g., 5 snapshots per chunk):
-   > ```sh
-   > ./zfs-snapatlas.sh rpool/data/vm-180-disk-0 5
-   > ```
-
-3. **Drill into a specific chunk with sub-chunks**
-
-   To analyze the first chunk in sub-chunks of 2 snapshots each:
-   ```sh
-   ./zfs-snapatlas.sh rpool/data/vm-180-disk-0 -c 1,2
-   ```
-   Example output:
-   ```
-   Analyzing snapshots for dataset: rpool/data/vm-180-disk-0
-   Chunk size: 10
-
-   Operating on chunk 1 [0-9] with 10 snapshots
-   Processing with sub-chunk size: 2 snapshots (5 sub-chunks)
-
-   Most recent snapshot: autosnap_2025-08-14_06:00:52_hourly
-
-   === SUMMARY: Sub-chunk reclaim sizes (from chunk 1) (gap mode: reclaim space per chunk) ===
-   ⚠️  Note: Small chunks (with few snapshots) show less reliable totals
-   sub-chunk 1-1	[00-01]	20240902_beforeUpgradingMint                	34.3G
-   sub-chunk 1-2	[02-03]	autosnap_2025-02-07_00:00:24_daily          	48K
-   sub-chunk 1-3	[04-05]	autosnap_2025-06-25_18:06:42_daily          	32K
-   sub-chunk 1-4	[06-07]	autosnap_2025-08-11_20:14:57_monthly        	0B
-   sub-chunk 1-5	[08-09]	autosnap_2025-08-12_00:00:51_daily          	0B
-   ```
-4. **Delete a specific sub-chunk of snapshots**
-
-   If you would like to delete sub-chunk 3 of chunk 1, you could issue the following command:
-   ```sh
-   ./zfs-snapatlas.sh rpool/data/vm-180-disk-0 -c 1,2 -D 1,3
-   ```
-   This would produce a confirmation following the summary:
-   ```
-   🗑️  DELETE CONFIRMATION
-   ========================
-   Sub-Chunk:  1-3
-   Reclaim space:   3.08G
-
-   Snapshots to delete:
-     - syncoid_pve1_2024-04-12:20:35:08-GMT-05:00
-     - syncoid_pve0_2024-04-29:18:05:42-GMT-05:00
-
-   Are you sure you want to delete these snapshots? (y/N): 
+2. Make the script executable:
+   ```bash
+   chmod +x zfs-snapatlas.sh
    ```
 
-> **Tip:** Use `-v` for verbose/debug output, and always review the summary before deleting snapshots!
+3. (Optional) Copy it to the system path:
+   ```bash
+   sudo cp zfs-snapatlas.sh /usr/bin/zfs-snapatlas
+   ```
 
-___
+4. Run it:
+   ```bash
+   zfs-snapatlas <dataset>
+   ```
 
-## Additional Usage Examples
+## Usage Examples
 
 ### Basic Analysis
 
 **Analyze snapshots with default chunk size (10):**
 ```bash
-./zfs-snapatlas.sh rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh rpool/data/vm-180-disk-1
 ```
 
 **Analyze with custom chunk size:**
 ```bash
-./zfs-snapatlas.sh rpool/data/vm-180-disk-0 5
+./zfs-snapatlas.sh rpool/data/vm-180-disk-1 5
 ```
 
 **Verbose output for debugging:**
 ```bash
-./zfs-snapatlas.sh -v rpool/data/vm-180-disk-0 10
+./zfs-snapatlas.sh -v rpool/data/vm-180-disk-1 10
 ```
 
 ### Chunking Strategies
 
 **Divide snapshots into exactly 3 chunks:**
 ```bash
-./zfs-snapatlas.sh -d 3 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -d 3 rpool/data/vm-180-disk-1
 ```
 
 **Divide into 4 chunks with verbose output:**
 ```bash
-./zfs-snapatlas.sh -v -d 4 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -v -d 4 rpool/data/vm-180-disk-1
 ```
 
 ### Analysis Modes
 
 **Gap mode (default) - shows reclaimable space by deleting snapshots within each chunk:**
 ```bash
-./zfs-snapatlas.sh rpool/data/vm-180-disk-0 10
+./zfs-snapatlas.sh rpool/data/vm-180-disk-1 10
 ```
 
 **Till-last mode - shows space from each chunk to most recent:**
 ```bash
-./zfs-snapatlas.sh -t rpool/data/vm-180-disk-0 10
+./zfs-snapatlas.sh -t rpool/data/vm-180-disk-1 10
 ```
 
 ### Sub-Chunk Analysis
 
 **Analyze only chunk 4, divided into sub-chunks of 1 snapshot each:**
 ```bash
-./zfs-snapatlas.sh -d 4 -c 4,1 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -d 4 -c 4,1 rpool/data/vm-180-disk-1
 ```
 
 **Analyze chunk 4 with sub-chunks of 2 snapshots each:**
 ```bash
-./zfs-snapatlas.sh -t -d 4 -c 4,2 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -t -d 4 -c 4,2 rpool/data/vm-180-disk-1
 ```
 
 ### Deletion Operations
 
 **Delete chunk 1 (with confirmation):**
 ```bash
-./zfs-snapatlas.sh -D 1 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -D 1 rpool/data/vm-180-disk-1
 ```
 
 **Delete chunk 1 without confirmation:**
 ```bash
-./zfs-snapatlas.sh -Dy 1 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -Dy 1 rpool/data/vm-180-disk-1
 ```
 
 **Delete sub-chunk 3 of chunk 1 (requires -c flag):**
 ```bash
-./zfs-snapatlas.sh -D 1,3 -c 1,5 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -D 1,3 -c 1,5 rpool/data/vm-180-disk-1
 ```
 
 **Delete ALL snapshots (with strong warnings):**
 ```bash
-./zfs-snapatlas.sh -D rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -D rpool/data/vm-180-disk-1
 ```
 
 ## Output Format
