@@ -2,7 +2,7 @@
 ## This script attempts to helps find the storage being used by snapshots.
 ## License: GPLv3
 ## Copyright (C) 2025 Michael Schmitz
-VERSION="0.2.0"
+VERSION="0.2.1"
 ## Now supports: lists snapshots and their reclaim size per chunk, and deletes snapshots
 ## Pending:
 ##
@@ -296,6 +296,14 @@ confirm_deletion() {
         return 0
     fi
     
+    # Reiterate reclaim space before confirmation
+    if [[ "$chunk_type" == "all" ]]; then
+        echo "Total reclaim space: $reclaim_size"
+    else
+        echo "Reclaim space for this operation: $reclaim_size"
+    fi
+    echo ""
+
     read -p "Are you sure you want to delete these snapshots? (y/N): " -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
