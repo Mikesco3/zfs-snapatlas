@@ -4,7 +4,7 @@ A tool for analyzing and managing ZFS storage usage by chunks of snapshots. This
 
 ## ⚠️ Beta Version Disclaimer
 
-**Version: 20250813 (Beta)**
+**Version: 20250814 (Beta)**
 
 This tool is currently in **BETA** and should be used with caution, especially the deletion functionality. Please:
 
@@ -20,9 +20,9 @@ The deletion logic is particularly sensitive and may have edge cases that haven'
 
 ZFS Snapshot Atlas analyzes your ZFS snapshots and groups them into manageable chunks, then calculates how much space each chunk is consuming. It provides two main modes:
 
-- **Gap Mode (default)**: Shows the reclaimable space *if you were to delete an entire chunk of snapshots* (i.e., the space that would be freed by removing all snapshots in that chunk).
-  - *Note:* "Gap Mode" does **not** refer to the space between chunks, but rather the space that would be reclaimed by deleting the snapshots *within* each chunk.
-- **Till-Last Mode**: Shows reclaimable space from each chunk to the most recent snapshot
+- **Chunk Mode (default)**: Shows the reclaimable space *if you were to delete an entire chunk of snapshots* (i.e., the space that would be freed by removing all snapshots in that chunk).
+  - *Note:* "Chunk Mode" does **not** refer to the space between chunks, but rather the space that would be reclaimed by deleting the snapshots *within* each chunk.
+- **To-Latest Mode**: Shows reclaimable space from each chunk to the most recent snapshot
 
 The script can also delete specific chunks or sub-chunks, making it easy to reclaim storage without losing all your snapshots.
 
@@ -75,7 +75,7 @@ sudo wget -O /usr/bin/zfs-snapatlas https://raw.githubusercontent.com/Mikesco3/z
 
    Most recent snapshot: autosnap_2025-08-14_06:00:52_hourly
 
-   === SUMMARY: Chunk reclaim sizes (gap mode: reclaim space per chunk) ===
+   === SUMMARY: Chunk reclaim sizes (chunk mode: reclaim space per chunk) ===
    chunk 1	[00-09]	20240902_before-Upgrades                  	34.3G
    chunk 2	[10-19]	autosnap_2025-08-12_05:00:49_hourly         	0B
    chunk 3	[20-29]	autosnap_2025-08-12_15:00:52_hourly         	0B
@@ -91,7 +91,7 @@ sudo wget -O /usr/bin/zfs-snapatlas https://raw.githubusercontent.com/Mikesco3/z
 
    To analyze the first chunk in sub-chunks of 2 snapshots each:
    ```sh
-   ./zfs-snapatlas.sh rpool/data/vm-180-disk-0 -c 1,2
+   ./zfs-snapatlas.sh rpool/data/vm-180-disk-0 -t 1,2
    ```
    Example output:
    ```
@@ -103,7 +103,7 @@ sudo wget -O /usr/bin/zfs-snapatlas https://raw.githubusercontent.com/Mikesco3/z
 
    Most recent snapshot: autosnap_2025-08-14_06:00:52_hourly
 
-   === SUMMARY: Sub-chunk reclaim sizes (from chunk 1) (gap mode: reclaim space per chunk) ===
+   === SUMMARY: Sub-chunk reclaim sizes (from chunk 1) (chunk mode: reclaim space per chunk) ===
    ⚠️  Note: Small chunks (with few snapshots) show less reliable totals
    sub-chunk 1-1	[00-01]	20240902_beforeUpgradingMint                	34.3G
    sub-chunk 1-2	[02-03]	autosnap_2025-02-07_00:00:24_daily          	48K
@@ -115,7 +115,7 @@ sudo wget -O /usr/bin/zfs-snapatlas https://raw.githubusercontent.com/Mikesco3/z
 
    If you would like to delete sub-chunk 3 of chunk 1, you could issue the following command:
    ```sh
-   ./zfs-snapatlas.sh rpool/data/vm-180-disk-0 -c 1,2 -D 1,3
+   ./zfs-snapatlas.sh rpool/data/vm-180-disk-0 -t 1,2 -D 1,3
    ```
    This would produce a confirmation following the summary:
    ```
@@ -168,26 +168,26 @@ ___
 
 ### Analysis Modes
 
-**Gap mode (default) - shows reclaimable space by deleting snapshots within each chunk:**
+**Chunk mode (default) - shows reclaimable space by deleting snapshots within each chunk:**
 ```bash
 ./zfs-snapatlas.sh rpool/data/vm-180-disk-0 10
 ```
 
-**Till-last mode - shows space from each chunk to most recent:**
+**To-latest mode - shows space from each chunk to most recent:**
 ```bash
-./zfs-snapatlas.sh -t rpool/data/vm-180-disk-0 10
+./zfs-snapatlas.sh -l rpool/data/vm-180-disk-0 10
 ```
 
 ### Sub-Chunk Analysis
 
 **Analyze only chunk 4, divided into sub-chunks of 1 snapshot each:**
 ```bash
-./zfs-snapatlas.sh -d 4 -c 4,1 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -d 4 -t 4,1 rpool/data/vm-180-disk-0
 ```
 
-**Analyze chunk 4 with sub-chunks of 2 snapshots each:**
+**Analyze chunk 4 with sub-chunks of 2 snapshots each in to-latest mode:**
 ```bash
-./zfs-snapatlas.sh -t -d 4 -c 4,2 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -l -d 4 -t 4,2 rpool/data/vm-180-disk-0
 ```
 
 ### Deletion Operations
@@ -199,17 +199,17 @@ ___
 
 **Delete chunk 1 without confirmation:**
 ```bash
-./zfs-snapatlas.sh -Dy 1 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -y -D 1 rpool/data/vm-180-disk-0
 ```
 
-**Delete sub-chunk 3 of chunk 1 (requires -c flag):**
+**Delete sub-chunk 3 of chunk 1 (requires -t flag):**
 ```bash
-./zfs-snapatlas.sh -D 1,3 -c 1,5 rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh -t 1,5 -D 1,3 rpool/data/vm-180-disk-0
 ```
 
 **Delete ALL snapshots (with strong warnings):**
 ```bash
-./zfs-snapatlas.sh -D rpool/data/vm-180-disk-0
+./zfs-snapatlas.sh --delete-all rpool/data/vm-180-disk-0
 ```
 
 ## Output Format
@@ -224,7 +224,7 @@ Example output:
 ```
 Most recent snapshot: auto-2025-01-15_12:00:00
 
-=== SUMMARY: Chunk reclaim sizes (gap mode: reclaim space per chunk) ===
+=== SUMMARY: Chunk reclaim sizes (chunk mode: reclaim space per chunk) ===
 chunk 01	[00-09]	auto-2025-01-01_12:00:00                    	1.2G
 chunk 02	[10-19]	auto-2025-01-05_12:00:00                    	856M
 chunk 03	[20-29]	auto-2025-01-10_12:00:00                    	2.1G
@@ -235,20 +235,21 @@ chunk 03	[20-29]	auto-2025-01-10_12:00:00                    	2.1G
 | Option | Description |
 |--------|-------------|
 | `-v, --verbose` | Enable debug mode (verbose output) |
-| `-t, --till-last` | Calculate reclaim from each chunk to most recent snapshot |
+| `-l, --to-latest` | Calculate reclaim from each chunk to most recent snapshot |
 | `-d N, --divide-by N` | Split snapshots into N chunks (overrides chunk_size) |
-| `-c N,M, --chunk N,M` | Operate only on chunk N, with M snapshots per sub-chunk |
-| `-D [coords], --delete` | Delete snapshots (instead of dry-run) |
-| `-y, --yes` | Skip confirmation prompts (use with -D) |
+| `-t N,M, --target N,M` | Operate only on chunk N, with M snapshots per sub-chunk |
+| `-D coords, --delete` | Delete snapshots. Coordinates are required (e.g., `-D 1` or `-D 1,3`) |
+| `--delete-all` | Delete ALL snapshots from the dataset (use with caution) |
+| `-y, --yes` | Skip confirmation prompts (use with `-D` or `--delete-all`) |
 | `-h, --help` | Show help message |
 
 ## Important Notes
 
-⚠️ **Small chunks may show unreliable totals** due to ZFS shared block accounting. Use larger chunks or `-t/--till-last` mode for more accurate space calculations.
+⚠️ **Small chunks may show unreliable totals** due to ZFS shared block accounting. Use larger chunks or `-l/--to-latest` mode for more accurate space calculations.
 
-💡 **Tip**: Use larger chunks or `-t/--till-last` mode for more accurate space calculations.
+💡 **Tip**: Use larger chunks or `-l/--to-latest` mode for more accurate space calculations.
 
-🗑️ **Delete**: Use `-D` with coordinates to target specific chunks (e.g., `-D 1` or `-D 1,3 -c 1,5`).
+🗑️ **Delete**: Use `-D` with coordinates to target specific chunks (e.g., `-D 1` or `-D 1,3 -t 1,5`).
 
 ## Requirements
 
@@ -289,7 +290,7 @@ This script was created to solve a real problem I faced with ZFS snapshot manage
 
 ## Version
 
-Current version: 20250813
+Current version: 20250814
 
 ## Author
 
