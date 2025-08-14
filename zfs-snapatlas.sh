@@ -57,6 +57,7 @@ usage() {
     echo "⚠️  Note: Small chunks may show unreliable totals due to ZFS shared block accounting."
     echo "💡  Tip: Use larger chunks or -l/--to-latest mode for more accurate space calculations."
     echo "🗑️  Delete: Use -D with coordinates for specific chunks/sub-chunks, or --delete-all."
+    echo "ℹ️  Chunk space is calculated from the first to the last snapshot within the chunk."
     exit 0
 }
 
@@ -730,10 +731,11 @@ fi
 if [[ "$chunk_to_latest_mode" == true ]]; then
     mode_note="chunk-to-latest: each chunk to most recent snapshot"
 else
-    mode_note="chunk mode: reclaim space per chunk"
+    mode_note="chunk mode: reclaim space from first to last snapshot in chunk"
 fi
 echo "($mode_note)"
 echo "Most recent snapshot: $most_recent_snap_name"
+echo "ℹ️ Note: Sum of chunk reclaim sizes may not equal total reclaimable space due to shared blocks between snapshots."
 
 # Header for summary table
 printf "%-12s %-12s %-46s %-10s\n" "Chunk" "Range" "Start Snapshot" "Reclaim"
@@ -914,246 +916,64 @@ while [[ "$chunk_start" -lt "$total_snapshots" && ("$divide_by" -eq 0 || "$chunk
             exit 0
         fi
     else
-        # Chunk mode (default): calculate whole reclaimable space of chunk
-        # Note: snapshot_array is now in chronological order (oldest first)
-        if [[ -n "$target_spec" ]]; then
-            # Sub-chunk mode: determine correct destroy command based on sub-chunk position
-            destroy_flags="-nv"
-            if [[ "$delete_mode" == true ]]; then
-                destroy_flags="-v"
+        # Chunk mode (default): destroy snapshots from the start to the end of the current chunk.
+        destroy_flags="-nv"
+        destroy_command="$dataset_name@$start_snap_name%$end_snap_name"
+        end_ref_snap="$end_snap"
+
+        if [[ "$delete_mode" == true ]]; then
+            destroy_flags="-v"
+            # Get chunk info for confirmation
+            if [[ -n "$target_spec" ]]; then
                 chunk_type="sub-chunk"
                 chunk_id="$target_chunk-$chunk_num_fmt"
-            fi
-            
-            # Determine if this is the last sub-chunk within the chunk
-            is_last_subchunk_in_chunk=false
-            if [[ "$chunk_num" -eq "$divide_by" || "$chunk_end" -eq $((total_snapshots - 1)) ]]; then
-                is_last_subchunk_in_chunk=true
-            fi
-            
-            if [[ "$is_last_subchunk_in_chunk" == true ]]; then
-                if [[ "$target_is_last_chunk" == true ]]; then
-                    # Case 3: Last sub-chunk of the last chunk - from start to end of sub-chunk
-                    destroy_command="$dataset_name@$start_snap_name%$end_snap_name"
-                    end_ref_snap="$end_snap"
-                    
-                    if [[ "$delete_mode" == true ]]; then
-                        dry_run_output=$(zfs destroy -nv "$destroy_command" 2>&1)
-                        reclaim_size=$(echo "$dry_run_output" | grep "would reclaim" | awk '{print $NF}')
-                        if [[ -z "$reclaim_size" ]]; then
-                            reclaim_size="0B"
-                        fi
-                        # Build snapshot list for confirmation (just this sub-chunk)
-                        snapshot_list=""
-                        for ((i=chunk_start; i<=chunk_end; i++)); do
-                            if [[ -n "$snapshot_list" ]]; then
-                                snapshot_list+=$'\n'
-                            fi
-                            snapshot_list+="${snapshot_array[$i]}"
-                        done
-                        # Confirm deletion
-                        if ! confirm_deletion "$chunk_type" "$chunk_id" "$start_snap" "$end_ref_snap" "$reclaim_size" "$snapshot_list"; then
-                            echo "Deletion cancelled."
-                            exit 0
-                        fi
-                    fi
-                else
-                    # Case 2: Last sub-chunk of chunk, but not last chunk - from start to first snap of next chunk
-                    next_chunk_first_snap_name="${next_chunk_first_snap#*@}"
-                    destroy_command="$dataset_name@$start_snap_name%$next_chunk_first_snap_name"
-                    end_ref_snap="$next_chunk_first_snap"
-                    
-                    if [[ "$delete_mode" == true ]]; then
-                        dry_run_output=$(zfs destroy -nv "$destroy_command" 2>&1)
-                        reclaim_size=$(echo "$dry_run_output" | grep "would reclaim" | awk '{print $NF}')
-                        if [[ -z "$reclaim_size" ]]; then
-                            reclaim_size="0B"
-                        fi
-                        # Build snapshot list for confirmation (from start of sub-chunk to next original chunk)
-                        snapshot_list=""
-                        # Find the index of next_chunk_first_snap in the original array
-                        next_chunk_first_idx=-1
-                        for ((i=0; i<original_total_snapshots; i++)); do
-                            if [[ "${original_snapshot_array[$i]}" == "$next_chunk_first_snap" ]]; then
-                                next_chunk_first_idx=$((target_start + i))
-                                break
-                            fi
-                        done
-                        
-                        # Find start index in original array
-                        start_idx_in_original=-1
-                        for ((i=0; i<original_total_snapshots; i++)); do
-                            if [[ "${original_snapshot_array[$i]}" == "$start_snap" ]]; then
-                                start_idx_in_original=$i
-                                break
-                            fi
-                        done
-                        
-                        # Add snapshots from chunk_start to just before next_chunk_first_idx
-                        if [[ $next_chunk_first_idx -gt 0 && $start_idx_in_original -ne -1 ]]; then
-                            for ((i=start_idx_in_original; i<next_chunk_first_idx; i++)); do
-                                if [[ -n "$snapshot_list" ]]; then
-                                    snapshot_list+=$'\n'
-                                fi
-                                snapshot_list+="${original_snapshot_array[$i]}"
-                            done
-                        fi
-                        # Confirm deletion
-                        if ! confirm_deletion "$chunk_type" "$chunk_id" "$start_snap" "$end_ref_snap" "$reclaim_size" "$snapshot_list"; then
-                            echo "Deletion cancelled."
-                            exit 0
-                        fi
-                    fi
-                fi
             else
-                # Case 1: Not last sub-chunk - from start to first snap of next sub-chunk
-                next_chunk_start=$((chunk_end + 1))
-                next_start_snap="${snapshot_array[$next_chunk_start]}"
-                next_start_snap_name="${next_start_snap#*@}"
-                destroy_command="$dataset_name@$start_snap_name%$next_start_snap_name"
-                end_ref_snap="$next_start_snap"
-                
-                if [[ "$delete_mode" == true ]]; then
-                    dry_run_output=$(zfs destroy -nv "$destroy_command" 2>&1)
-                    reclaim_size=$(echo "$dry_run_output" | grep "would reclaim" | awk '{print $NF}')
-                    if [[ -z "$reclaim_size" ]]; then
-                        reclaim_size="0B"
-                    fi
-                    # Build snapshot list for confirmation (from start of current sub-chunk to start of next sub-chunk)
-                    snapshot_list=""
-                    for ((i=chunk_start; i<next_chunk_start; i++)); do
-                        if [[ -n "$snapshot_list" ]]; then
-                            snapshot_list+=$'\n'
-                        fi
-                        snapshot_list+="${snapshot_array[$i]}"
-                    done
-                    # Confirm deletion
-                    if ! confirm_deletion "$chunk_type" "$chunk_id" "$start_snap" "$end_ref_snap" "$reclaim_size" "$snapshot_list"; then
-                        echo "Deletion cancelled."
-                        exit 0
-                    fi
+                chunk_type="chunk"
+                chunk_id="$chunk_num_fmt"
+            fi
+
+            # Get reclaim size first for confirmation
+            dry_run_output=$(zfs destroy -nv "$destroy_command" 2>&1)
+            reclaim_size=$(echo "$dry_run_output" | grep "would reclaim" | awk '{print $NF}')
+            if [[ -z "$reclaim_size" ]]; then
+                reclaim_size="0B"
+            fi
+
+            # Build snapshot list for confirmation (from start of chunk to end of chunk)
+            snapshot_list=""
+            for ((i=chunk_start; i<=chunk_end; i++)); do
+                if [[ -n "$snapshot_list" ]]; then
+                    snapshot_list+=$'\n'
                 fi
-            fi
-            
-            if [[ "$debug_mode" == true ]]; then
-                echo ""
-                echo "Chunk: $chunk_range"
-                echo "  Mode: sub-chunk"
-                echo "  Start snap: $start_snap"
-                echo "  End snap (for range): $end_snap"
-                echo "  Ref snap (for destroy): $end_ref_snap"
-                echo "  Command: zfs destroy $destroy_flags \"$destroy_command\""
-            fi
+                snapshot_list+="${snapshot_array[$i]}"
+            done
 
-            destroy_output=$(zfs destroy $destroy_flags "$destroy_command" 2>&1)
-            exit_code=$?
-
-            if [[ $exit_code -eq 0 && "$delete_mode" == true && (-n "$delete_coordinates" || -n "$sub_chunk_target") ]]; then
-                echo "Deletion completed successfully."
+            # Confirm deletion
+            if ! confirm_deletion "$chunk_type" "$chunk_id" "$start_snap" "$end_ref_snap" "$reclaim_size" "$snapshot_list"; then
+                echo "Deletion cancelled."
                 exit 0
             fi
-        else
-            # Regular chunk mode
-            if [[ "$chunk_num" -eq "$divide_by" || ("$divide_by" -eq 0 && "$chunk_end" -eq $((total_snapshots - 1))) ]]; then
-                # Last chunk: from start of chunk to end of chunk
-                destroy_flags="-nv" 
-                destroy_command="$dataset_name@$start_snap_name%$end_snap_name"
-                end_ref_snap="$end_snap"
+        fi
 
-                if [[ "$delete_mode" == true ]]; then
-                    destroy_flags="-v"
-                    # Get chunk info for confirmation
-                    chunk_type="chunk"
-                    chunk_id="$chunk_num_fmt"
-                    # Get reclaim size first for confirmation
-                    dry_run_output=$(zfs destroy -nv "$destroy_command" 2>&1)
-                    reclaim_size=$(echo "$dry_run_output" | grep "would reclaim" | awk '{print $NF}')
-                    if [[ -z "$reclaim_size" ]]; then
-                        reclaim_size="0B"
-                    fi
-                    # Build snapshot list for confirmation (from start of chunk to end of chunk)
-                    snapshot_list=""
-                    for ((i=chunk_start; i<=chunk_end; i++)); do
-                        if [[ -n "$snapshot_list" ]]; then
-                            snapshot_list+=$'\n'
-                        fi
-                        snapshot_list+="${snapshot_array[$i]}"
-                    done
-                    # Confirm deletion
-                    if ! confirm_deletion "$chunk_type" "$chunk_id" "$start_snap" "$end_ref_snap" "$reclaim_size" "$snapshot_list"; then
-                        echo "Deletion cancelled."
-                        exit 0
-                    fi
-                fi
-
-                if [[ "$debug_mode" == true ]]; then
-                    echo ""
-                    echo "Chunk: $chunk_range"
-                    echo "  Mode: chunk"
-                    echo "  Start snap: $start_snap"
-                    echo "  End snap:   $end_snap"
-                    echo "  Command: zfs destroy $destroy_flags \"$destroy_command\""
-                fi
-
-                destroy_output=$(zfs destroy $destroy_flags "$destroy_command" 2>&1)
-                exit_code=$?
-
-                if [[ $exit_code -eq 0 && "$delete_mode" == true && (-n "$delete_coordinates" || -n "$sub_chunk_target") ]]; then
-                    echo "Deletion completed successfully."
-                    exit 0
-                fi
+        if [[ "$debug_mode" == true ]]; then
+            echo ""
+            echo "Chunk: $chunk_range"
+            if [[ -n "$target_spec" ]]; then
+              echo "  Mode: sub-chunk"
             else
-                # Not last chunk: from start of current chunk to start of next chunk
-                next_chunk_start=$((chunk_end + 1)) 
-                next_start_snap="${snapshot_array[$next_chunk_start]}"
-                next_start_snap_name="${next_start_snap#*@}" 
-                destroy_flags="-nv"
-                destroy_command="$dataset_name@$start_snap_name%$next_start_snap_name"
-                end_ref_snap="$next_start_snap"
-
-                if [[ "$delete_mode" == true ]]; then
-                    destroy_flags="-v"
-                    # Get chunk info for confirmation 
-                    chunk_type="chunk"
-                    chunk_id="$chunk_num_fmt"
-                    # Get reclaim size first for confirmation
-                    dry_run_output=$(zfs destroy -nv "$destroy_command" 2>&1)
-                    reclaim_size=$(echo "$dry_run_output" | grep "would reclaim" | awk '{print $NF}')
-                    if [[ -z "$reclaim_size" ]]; then
-                        reclaim_size="0B"
-                    fi
-                    # Build snapshot list for confirmation (from start of current chunk to start of next chunk)
-                    snapshot_list=""
-                    for ((i=chunk_start; i<next_chunk_start; i++)); do
-                        if [[ -n "$snapshot_list" ]]; then
-                            snapshot_list+=$'\n'
-                        fi
-                        snapshot_list+="${snapshot_array[$i]}"
-                    done
-                    # Confirm deletion
-                    if ! confirm_deletion "$chunk_type" "$chunk_id" "$start_snap" "$end_ref_snap" "$reclaim_size" "$snapshot_list"; then
-                        echo "Deletion cancelled."
-                        exit 0
-                    fi
-                fi
-
-                if [[ "$debug_mode" == true ]]; then
-                    echo ""
-                    echo "Chunk: $chunk_range"
-                    echo "  Mode: chunk"
-                    echo "  Start snap: $start_snap"
-                    echo "  End snap (ref): $end_ref_snap"
-                    echo "  Command: zfs destroy $destroy_flags \"$destroy_command\""
-                fi
-
-                destroy_output=$(zfs destroy $destroy_flags "$destroy_command" 2>&1)
-                exit_code=$?
-
-                if [[ $exit_code -eq 0 && "$delete_mode" == true && (-n "$delete_coordinates" || -n "$sub_chunk_target") ]]; then
-                    echo "Deletion completed successfully."
-                    exit 0
-                fi
+              echo "  Mode: chunk"
             fi
+            echo "  Start snap: $start_snap"
+            echo "  End snap:   $end_snap"
+            echo "  Command: zfs destroy $destroy_flags \"$destroy_command\""
+        fi
+
+        destroy_output=$(zfs destroy $destroy_flags "$destroy_command" 2>&1)
+        exit_code=$?
+
+        if [[ $exit_code -eq 0 && "$delete_mode" == true && (-n "$delete_coordinates" || -n "$sub_chunk_target") ]]; then
+            echo "Deletion completed successfully."
+            exit 0
         fi
     fi
     exit_code=$? 
