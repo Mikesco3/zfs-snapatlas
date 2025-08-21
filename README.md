@@ -8,7 +8,7 @@ For more detailed information, see [DETAILS.md](DETAILS.md).
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Git tags are used to mark releases.
 
-- **Current Version:** 0.2.4 (BETA)
+- **Current Version:** 0.2.5 (BETA)
 
 ## ⚠️ Beta Version Disclaimer
 
@@ -29,6 +29,12 @@ Run the following with root privileges command to download the script:
 ```bash
 sudo wget -O /usr/bin/zfs-snapatlas https://raw.githubusercontent.com/Mikesco3/zfs-snapatlas/main/zfs-snapatlas.sh && sudo chmod +x /usr/bin/zfs-snapatlas
 ```
+
+## Alternative: TUI Version
+
+If you prefer a graphical terminal interface, there's also a **Terminal User Interface (TUI)** version available at [zfs-snapatlas-tui](https://github.com/Mikesco3/zfs-snapatlas-tui). 
+
+⚠️ **Important**: The TUI version is currently in **BETA** (version 0.1.2) and should be tested carefully on non-critical datasets before use. The TUI version provides the same functionality as this CLI version but with an interactive dialog-based interface.
 
 ## Quick Start: Reclaim ZFS Snapshot Space in 4 Steps
 
@@ -124,7 +130,6 @@ Reclaim space:  34.3G
 
 Snapshots to delete:
   - 20240902_beforeUpgradingMint
-  - autosnap_2025-02-06_00:00:24_daily
 
 Are you sure you want to delete these snapshots? (y/N):
 ```

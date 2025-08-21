@@ -12,6 +12,16 @@ ZFS Snapshot Atlas analyzes your ZFS snapshots and groups them into manageable c
 
 The script can also delete specific chunks or sub-chunks, making it easy to reclaim storage without losing all your snapshots.
 
+## The Problem & Story
+
+I fell in love with ZFS and snapshotting, but over time discovered that I was having issues figuring out where the storage was being taken up by snapshots. Usually, I'd be trying to zero in on the issue because something alerted me that the drive was becoming too full.
+
+Initially, I'd take a scorched earth approach and delete almost all of my snapshots because the usual `zfs list -r -t snap` would never really show me the full picture. That was until I stumbled across an obscure mention of `zfs destroy -nv dataset@oldsnapshot%newersnapshot` and how that would give me an idea of the space that could be reclaimed by deleting everything between those two snapshots.
+
+After looking for such a tool and not finding one, I finally decided to build it myself. Fortunately, AI came to the rescue to help me with the heavy lifting.
+
+Please forgive me if this script isn't quite as good as it would be if it was written by someone with years of ZFS and bash coding experience, but it's the best I could do. This took me about three days and a few late nights of banging my head against the wall with the help (and sometimes against the help) of AI. Huge thanks to Cursor. While this script was developed with the help of multiple AI assistants, including Anthropic's Claude and OpenAI's ChatGPT, I found Google's Gemini Pro to be significantly more precise.
+
 ## Features
 
 - 🔍 **Storage Analysis**: See exactly how much space each chunk of snapshots is consuming
@@ -126,15 +136,7 @@ chunk 03	[20-29]	auto-2025-01-10_12:00:00                    	2.1G
 - [ ] Package for easier installation (e.g., as a Homebrew or Debian package)
 - [ ] Eventually: Turn this into a TUI (Text User Interface) using `dialog` or similar tools for selecting the zfs dataset against which to run it and interactive snapshot management (something similar or inspired off of `ncdu`)
 
-## The Problem & Story
 
-I fell in love with ZFS and snapshotting, but over time discovered that I was having issues figuring out where the storage was being taken up by snapshots. Usually, I'd be trying to zero in on the issue because something alerted me that the drive was becoming too full.
-
-Initially, I'd take a scorched earth approach and delete almost all of my snapshots because the usual `zfs list -r -t snap` would never really show me the full picture. That was until I stumbled across an obscure mention of `zfs destroy -nv dataset@oldsnapshot%newersnapshot` and how that would give me an idea of the space that could be reclaimed by deleting everything between those two snapshots.
-
-After looking for such a tool and not finding one, I finally decided to build it myself. Fortunately, AI came to the rescue to help me with the heavy lifting.
-
-Please forgive me if this script isn't quite as good as it would be if it was written by someone with years of ZFS and bash coding experience, but it's the best I could do. This took me about three days and a few late nights of banging my head against the wall with the help (and sometimes against the help) of AI. Huge thanks to Cursor. While this script was developed with the help of multiple AI assistants, including Anthropic's Claude and OpenAI's ChatGPT, I found Google's Gemini Pro to be significantly more precise.
 
 ## Contributing
 
